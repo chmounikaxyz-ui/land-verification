@@ -21,7 +21,6 @@ import {
   Scissors,
   ShieldAlert,
   CheckCircle2,
-  Layers,
   Trees,
   Info,
   RefreshCw,
@@ -852,51 +851,7 @@ export default function BasicInfoForm({ plotDetails, onChangeDetails, onNext, on
                 </div>
               </div>
 
-              {/* Cadastral Geometry & Area Conversions Widget */}
-              <div className="mt-4 p-3.5 bg-gray-50/90 rounded-lg border border-gray-200/80">
-                <div className="flex items-center justify-between mb-2.5">
-                  <span className="text-[11px] font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
-                    <Layers className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>Cadastral Plot Metrics & Area Conversions</span>
-                  </span>
-                  <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded">
-                    WGS-84 / MeeBhoomi Datum
-                  </span>
-                </div>
-                
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
-                  <div className="bg-white p-2 rounded border border-gray-200 shadow-2xs">
-                    <span className="block text-[10px] font-bold text-gray-500 uppercase">Sq. Yards</span>
-                    <span className="text-sm font-extrabold text-emerald-700 font-mono">
-                      {(plotDetails.plotSize || 0).toLocaleString()}
-                    </span>
-                  </div>
-                  <div className="bg-white p-2 rounded border border-gray-200 shadow-2xs">
-                    <span className="block text-[10px] font-bold text-gray-500 uppercase">Sq. Feet</span>
-                    <span className="text-sm font-extrabold text-gray-900 font-mono">
-                      {((plotDetails.plotSize || 0) * 9).toLocaleString()}
-                    </span>
-                  </div>
-                  <div className="bg-white p-2 rounded border border-gray-200 shadow-2xs">
-                    <span className="block text-[10px] font-bold text-gray-500 uppercase">Sq. Meters</span>
-                    <span className="text-sm font-extrabold text-gray-900 font-mono">
-                      {((plotDetails.plotSize || 0) * 0.836127).toFixed(1)}
-                    </span>
-                  </div>
-                  <div className="bg-white p-2 rounded border border-gray-200 shadow-2xs">
-                    <span className="block text-[10px] font-bold text-gray-500 uppercase">
-                      {plotDetails.district === 'Rangareddy' || plotDetails.district === 'Medchal' ? 'Gunthas' : 'Cents'}
-                    </span>
-                    <span className="text-sm font-extrabold text-blue-700 font-mono">
-                      {plotDetails.plotSize 
-                        ? (plotDetails.district === 'Rangareddy' || plotDetails.district === 'Medchal'
-                            ? (plotDetails.plotSize / 121).toFixed(2)
-                            : (plotDetails.plotSize / 48.4).toFixed(2))
-                        : '0.00'}
-                    </span>
-                  </div>
-                </div>
-              </div>
+
 
             </div>
           </div>
