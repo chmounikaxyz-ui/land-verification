@@ -20,8 +20,35 @@ export default function App() {
   const [wizardStep, setWizardStep] = useState<number>(1);
   const [isMethodologyOpen, setIsMethodologyOpen] = useState(false);
   
-  // Storage for previous reports
-  const [reports, setReports] = useState<VerificationResult[]>(INITIAL_REPORTS);
+  // Local storage persistence key
+  const AUDIT_REPORTS_STORAGE_KEY = 'land_verification_audit_reports';
+
+  const loadInitialReports = (): VerificationResult[] => {
+    try {
+      const saved = localStorage.getItem(AUDIT_REPORTS_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch (err) {
+      console.error("Failed to load audit reports from localStorage:", err);
+    }
+    return INITIAL_REPORTS;
+  };
+
+  // Storage for previous reports (seeded from local storage or initial defaults)
+  const [reports, setReports] = useState<VerificationResult[]>(loadInitialReports);
+
+  const saveReportsToStorage = (updatedReports: VerificationResult[]) => {
+    setReports(updatedReports);
+    try {
+      localStorage.setItem(AUDIT_REPORTS_STORAGE_KEY, JSON.stringify(updatedReports));
+    } catch (err) {
+      console.error("Failed to save audit reports to localStorage:", err);
+    }
+  };
   
   // Selected report for step 4 viewing (either loaded from history or currently analyzed)
   const [selectedReport, setSelectedReport] = useState<VerificationResult | null>(null);
@@ -51,9 +78,8 @@ export default function App() {
       setSession(session);
       if (session) {
         fetchReports(session.user.id);
-      } else {
-        setReports([]);
       }
+      // Note: Preserve existing local reports if not authenticated
     });
 
     return () => subscription.unsubscribe();
@@ -71,11 +97,18 @@ export default function App() {
       
       // Parse JSONb to match VerificationResult structure
       if (data && data.length > 0) {
-        const parsedReports = data.map(r => ({
+        const parsedReports = data.map((r: any) => ({
           ...r.report_data,
           id: r.id
         }));
-        setReports(parsedReports);
+        setReports(prev => {
+          const remoteIds = new Set(parsedReports.map((p: any) => p.id));
+          const combined = [...parsedReports, ...prev.filter(p => !remoteIds.has(p.id))];
+          try {
+            localStorage.setItem(AUDIT_REPORTS_STORAGE_KEY, JSON.stringify(combined));
+          } catch (e) {}
+          return combined;
+        });
       }
     } catch (err) {
       console.error("Error fetching reports from Supabase:", err);
@@ -214,9 +247,15 @@ export default function App() {
       }
       const newReportId = `#RPT-${Math.floor(100000 + Math.random() * 900000)}`;
       
+      const finalLocation = plotDetails.locationName?.trim()
+        ? plotDetails.locationName.trim()
+        : plotDetails.village?.trim()
+          ? `${plotDetails.village.trim()}${plotDetails.surveyNumber ? `, Survey ${plotDetails.surveyNumber}` : ''}`
+          : (plotDetails.surveyNumber ? `Survey Plot ${plotDetails.surveyNumber}` : 'Custom Land Assessment');
+
       const newReport: VerificationResult = {
         id: newReportId,
-        plotDetails: { ...plotDetails, locationName: `${plotDetails.village}, Sector ${plotDetails.surveyNumber}` },
+        plotDetails: { ...plotDetails, locationName: finalLocation },
         safetyScore: data.safetyScore,
         verdict: data.verdict,
         confidenceScore: data.confidenceScore,
@@ -266,8 +305,9 @@ export default function App() {
         }
       }
 
-      // Prepend report to history
-      setReports(prev => [newReport, ...prev]);
+      // Prepend report to history and save to localStorage
+      const updatedReports = [newReport, ...reports.filter(r => r.id !== newReport.id)];
+      saveReportsToStorage(updatedReports);
       setSelectedReport(newReport);
       setWizardStep(4);
     } catch (err: any) {
@@ -281,9 +321,25 @@ export default function App() {
 
   const handleSelectHistoryReport = (report: VerificationResult) => {
     setSelectedReport(report);
+    if (report.plotDetails) {
+      setPlotDetails(report.plotDetails);
+    }
     // Open report viewing in verify view step 4
     setWizardStep(4);
     setCurrentView('verify');
+  };
+
+  const handleDeleteReport = (reportId: string) => {
+    const updated = reports.filter(r => r.id !== reportId);
+    saveReportsToStorage(updated);
+    setToastMessage('Report removed from audit history.');
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const handleResetSampleData = () => {
+    saveReportsToStorage(INITIAL_REPORTS);
+    setToastMessage('Sample audit reports reloaded successfully.');
+    setTimeout(() => setToastMessage(null), 3000);
   };
 
   return (
@@ -375,14 +431,22 @@ export default function App() {
         )}
         
         {currentView === 'history' && (
+          <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
             <HistoryDashboard 
               reports={reports} 
               onSelectReport={handleSelectHistoryReport}
               onStartNewVerification={handleStartVerification}
+              onDeleteReport={handleDeleteReport}
+              onResetSampleData={handleResetSampleData}
             />
+          </div>
         )}
         
-        {currentView === 'profile' && <UserProfile />}
+        {currentView === 'profile' && (
+          <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+            <UserProfile />
+          </div>
+        )}
       </main>
 
       {/* Floating Bottom Navigator for Mobile */}
