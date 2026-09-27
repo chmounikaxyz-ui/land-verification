@@ -1,0 +1,6 @@
+{
+  "name": "AI-Plot-Insight",
+  "description": "Automated geospatial land plot verification using satellite analysis, document cross-referencing, and AI-driven risk assessment.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

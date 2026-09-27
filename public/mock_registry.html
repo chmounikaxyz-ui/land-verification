@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mock Government Land Registry</title>
+    <style>
+        body { font-family: sans-serif; padding: 40px; background-color: #f4f4f5; }
+        .container { max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        h1 { color: #18181b; }
+        input { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #d4d4d8; border-radius: 4px; box-sizing: border-box; }
+        button { background-color: #2563eb; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; }
+        .result { margin-top: 20px; padding: 15px; background-color: #ecfeff; border: 1px solid #a5f3fc; border-radius: 4px; display: none; }
+        .owner-label { font-weight: bold; color: #155e75; }
+        .result-owner-name { font-size: 1.2em; color: #083344; margin-top: 5px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Official Land Registry Search</h1>
+        <p>Enter the Survey Number to find the registered owner.</p>
+        
+        <input type="text" id="surveySearchBox" placeholder="e.g. 124/A">
+        <button id="searchButton" onclick="searchRegistry()">Search Records</button>
+
+        <div id="resultArea" class="result">
+            <div class="owner-label">Registered Owner:</div>
+            <div id="ownerName" class="result-owner-name"></div>
+        </div>
+    </div>
+
+    <script>
+        function searchRegistry() {
+            const surveyNo = document.getElementById('surveySearchBox').value;
+            const resultArea = document.getElementById('resultArea');
+            const ownerName = document.getElementById('ownerName');
+            
+            // Simulate network delay
+            setTimeout(() => {
+                if (surveyNo.includes('124')) {
+                    ownerName.innerText = "CH. MOUNIKA";
+                } else if (surveyNo) {
+                    ownerName.innerText = "V. SRINIVAS RAO";
+                } else {
+                    ownerName.innerText = "NO RECORD FOUND";
+                }
+                resultArea.style.display = "block";
+            }, 800); // 800ms simulated delay
+        }
+    </script>
+</body>
+</html>

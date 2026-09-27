@@ -1,0 +1,13 @@
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+google-credentials.json
+venv/
+python_ml/venv/
+__pycache__/
+*.pyc

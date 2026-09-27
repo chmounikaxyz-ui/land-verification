@@ -1,0 +1,12 @@
+GOVERNMENT OF INDIA - UNIQUE IDENTIFICATION AUTHORITY OF INDIA
+AADHAAR (Proof of Identity)
+
+Name: John Doe
+DOB: 14/08/1985
+Gender: Male
+Aadhaar Number: 4521 8900 1245
+
+Address: 
+S/O Jane Doe, 12-4-99, Devi Nagar, Vijayawada, NTR District, Andhra Pradesh - 520003
+
+Document verified for biometric and demographic authenticity.
