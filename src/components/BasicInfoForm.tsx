@@ -26,11 +26,8 @@ import {
   Info,
   RefreshCw,
   X,
-  BookmarkPlus,
-  BadgeCheck,
-  Fingerprint
+  BookmarkPlus
 } from 'lucide-react';
-import { verifyWithDigiLocker, generateULPIN, formatULPINDisplay } from '../utils/digilockerService';
 
 interface BasicInfoFormProps {
   plotDetails: PlotDetails;
@@ -280,32 +277,6 @@ export default function BasicInfoForm({ plotDetails, onChangeDetails, onNext, on
   const [mapType, setMapType] = useState<'satellite' | 'streets'>('satellite');
   const [isClippingActive, setIsClippingActive] = useState<boolean>(false);
   const [saveSuccessToast, setSaveSuccessToast] = useState(false);
-  const [isVerifyingDigiLocker, setIsVerifyingDigiLocker] = useState(false);
-  const [digiLockerToast, setDigiLockerToast] = useState<string | null>(null);
-
-  const handleVerifyDigiLocker = async () => {
-    setIsVerifyingDigiLocker(true);
-    try {
-      const record = await verifyWithDigiLocker(plotDetails);
-      onChangeDetails(prev => ({
-        ...prev,
-        ulpin: record.ulpin,
-        pattadarName: record.pattadarName,
-        khataNumber: record.khataNumber,
-        landClassification: record.landClassification,
-        isDigiLockerVerified: true,
-        digiLockerSignedBy: record.digiLockerSignedBy,
-        digiLockerTimestamp: record.digiLockerTimestamp,
-        digitalSignatureHash: record.digitalSignatureHash
-      }));
-      setDigiLockerToast(`Authenticated via DigiLocker! Pattadar: ${record.pattadarName}`);
-      setTimeout(() => setDigiLockerToast(null), 4000);
-    } catch (e) {
-      console.error("DigiLocker verification failed:", e);
-    } finally {
-      setIsVerifyingDigiLocker(false);
-    }
-  };
   const [userSavedPlots, setUserSavedPlots] = useState<typeof PRESET_PLACES>(() => {
     try {
       const raw = localStorage.getItem('user_saved_plots');
@@ -1088,123 +1059,7 @@ export default function BasicInfoForm({ plotDetails, onChangeDetails, onNext, on
                 )}
               </div>
 
-              {/* Government Land Record Status & National Bhu-Aadhaar (DigiLocker) */}
-              <div className="pt-3 border-t border-gray-100 space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-gray-700 flex items-center gap-1.5">
-                    <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                    <span>Govt Land Record & Bhu-Aadhaar (ULPIN)</span>
-                  </label>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
-                    plotDetails.isDigiLockerVerified 
-                      ? 'text-emerald-800 bg-emerald-100 border border-emerald-300' 
-                      : 'text-blue-800 bg-blue-100 border border-blue-200'
-                  }`}>
-                    {plotDetails.isDigiLockerVerified ? 'DigiLocker Verified' : 'DILRMP Linked'}
-                  </span>
-                </div>
 
-                {!plotDetails.surveyNumber && !plotDetails.locationName && !plotDetails.pattadarName && !plotDetails.isDigiLockerVerified ? (
-                  <div className="p-4 bg-gray-50 border border-dashed border-gray-300 rounded-xl text-xs text-center space-y-1.5 text-gray-500">
-                    <Fingerprint className="w-5 h-5 mx-auto text-gray-400" />
-                    <span className="font-bold text-gray-700 block text-xs">No Plot Selected Yet</span>
-                    <span className="text-[11px] text-gray-500 block leading-relaxed">
-                      Search a location, select a plot on the map, or pick a sample preset to load land records & Bhu-Aadhaar (ULPIN).
-                    </span>
-                  </div>
-                ) : (
-                  <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg text-xs space-y-2">
-                    {/* ULPIN 14-Digit Bhu-Aadhaar Identification Banner */}
-                    <div className="flex items-center justify-between p-2 bg-white rounded border border-gray-200 shadow-2xs">
-                      <div>
-                        <span className="text-[10px] font-extrabold uppercase text-gray-400 tracking-wider block">
-                          14-Digit Bhu-Aadhaar (ULPIN)
-                        </span>
-                        <span className="font-mono text-xs font-black text-gray-900 tracking-wider">
-                          {formatULPINDisplay(plotDetails.ulpin || (plotDetails.surveyNumber ? generateULPIN(plotDetails.latitude, plotDetails.longitude, plotDetails.surveyNumber) : 'AP-PENDING'))}
-                        </span>
-                      </div>
-                      <span className="text-[9px] font-bold text-emerald-800 bg-emerald-50 px-2 py-1 rounded border border-emerald-200 font-mono">
-                        WGS84 GEOCODE
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2 text-[11px] pt-1">
-                      <div>
-                        <span className="text-gray-500 block text-[10px] uppercase font-bold">Khata / Account No</span>
-                        <span className="font-bold text-gray-900 font-mono">
-                          {plotDetails.khataNumber ? `#${plotDetails.khataNumber}` : 'Pending Verification'}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-gray-500 block text-[10px] uppercase font-bold">Pattadar / Owner</span>
-                        <span className="font-bold text-gray-900 truncate block">
-                          {plotDetails.pattadarName || (plotDetails.isDigiLockerVerified ? 'Registered Title Holder' : 'Pending DigiLocker Verification')}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-gray-500 block text-[10px] uppercase font-bold">Land Classification</span>
-                        <span className="font-semibold text-gray-800">
-                          {plotDetails.landClassification || 'Pending Classification'}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-gray-500 block text-[10px] uppercase font-bold">Revenue Extent</span>
-                        <span className="font-semibold text-emerald-700">
-                          {plotDetails.plotSize > 0 
-                            ? (plotDetails.extentAcres ? `${plotDetails.extentAcres} Acres (${plotDetails.plotSize.toLocaleString()} sq yd)` : `${plotDetails.plotSize.toLocaleString()} sq yards`) 
-                            : 'Pending Plot Extent'}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* 1-Click DigiLocker Bhu-Aadhaar Verification Button */}
-                    {!plotDetails.isDigiLockerVerified ? (
-                      <button
-                        type="button"
-                        onClick={handleVerifyDigiLocker}
-                        disabled={isVerifyingDigiLocker || !plotDetails.surveyNumber}
-                        className="w-full mt-2 py-2 px-3 bg-gradient-to-r from-blue-700 to-indigo-700 hover:from-blue-800 hover:to-indigo-800 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-2 shadow-xs hover:shadow-md transition-all cursor-pointer disabled:opacity-60"
-                      >
-                        {isVerifyingDigiLocker ? (
-                          <>
-                            <Loader2 className="w-4 h-4 animate-spin text-blue-200" />
-                            <span>Connecting to DigiLocker (API Setu Gateway)...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Fingerprint className="w-4 h-4 text-blue-200" />
-                            <span>Verify via National DigiLocker (API Setu)</span>
-                          </>
-                        )}
-                      </button>
-                    ) : (
-                      <div className="mt-2 p-2 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center justify-between text-xs text-emerald-950">
-                        <div className="flex items-center gap-2">
-                          <BadgeCheck className="w-4.5 h-4.5 text-emerald-600 shrink-0" />
-                          <div>
-                            <span className="font-extrabold text-[11px] block leading-tight">
-                              Digitally Authenticated Title Record
-                            </span>
-                            <span className="text-[10px] text-emerald-700 font-mono">
-                              {plotDetails.digitalSignatureHash || 'SHA256: 4b91f03d8a7c29e1'}
-                            </span>
-                          </div>
-                        </div>
-                        <span className="text-[9px] font-black text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded uppercase">
-                          DILRMP CERTIFIED
-                        </span>
-                      </div>
-                    )}
-
-                    {digiLockerToast && (
-                      <div className="p-2 bg-blue-50 border border-blue-200 rounded text-[11px] text-blue-900 font-medium animate-fadeIn">
-                        {digiLockerToast}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
 
               {/* Asking Price */}
               <div className="pt-3 border-t border-gray-100">
