@@ -10,7 +10,6 @@ import {
   CheckCircle2, 
   ArrowLeft, 
   ArrowRight,
-  Sparkles,
   Loader2,
   FileCheck,
   Eye,
@@ -19,8 +18,7 @@ import {
   ExternalLink,
   RotateCcw,
   FileDown,
-  BookOpen,
-  Fingerprint
+  BookOpen
 } from 'lucide-react';
 import { PlotDetails, UploadedDocument } from '../types';
 
@@ -252,50 +250,6 @@ export default function DocumentUpload({ plotDetails, uploadedDocuments, onUploa
     onUploadedDocumentsChange(docList);
   };
 
-  const handleImportDigiLocker = () => {
-    const sNum = plotDetails.surveyNumber || '124/A';
-    const pSize = plotDetails.plotSize || 400;
-    const vName = plotDetails.village || 'Municipal Area';
-    const mName = plotDetails.mandal || 'Urban Mandal';
-    const dName = plotDetails.district || 'NTR';
-    const oName = plotDetails.pattadarName && plotDetails.pattadarName !== 'Private Owner (Deed Verified)' 
-      ? plotDetails.pattadarName 
-      : (plotDetails.surveyNumber === '124/A' ? 'Ch. Narasimha Rao' : 'Registered Land Owner (Verified)');
-    const kNum = plotDetails.khataNumber || (plotDetails.surveyNumber === '124/A' ? '1042' : '1088');
-    const ulpin = plotDetails.ulpin || `AP28${Math.abs(Math.round(plotDetails.latitude * 10000)) % 9999}${sNum.replace(/[^0-9a-zA-Z]/g, '').slice(0, 4)}9102`;
-
-    const digiDoc: UploadedFile = {
-      name: `DigiLocker_Certified_ROR1B_ULPIN_${ulpin.slice(0, 8)}.pdf`,
-      size: '1.24 MB',
-      type: 'application/pdf',
-      ocrData: {
-        fileName: `DigiLocker_Certified_ROR1B_ULPIN_${ulpin.slice(0, 8)}.pdf`,
-        fileSize: '1.24 MB',
-        documentType: 'ROR-1B Report',
-        surveyNumber: sNum,
-        khataNumber: kNum,
-        ownerName: oName,
-        plotAreaSqYards: pSize,
-        extentAcres: parseFloat((pSize / 4840).toFixed(4)),
-        district: dName,
-        mandal: mName,
-        village: vName,
-        landClassification: plotDetails.landClassification || 'Residential Abadi / Patta Land',
-        registrationDate: '18-Mar-2026',
-        stampDutyAmount: 250000,
-        extractedRawText: `GOVERNMENT OF INDIA - DIGITAL INDIA LAND RECORDS MODERNIZATION PROGRAMME (DILRMP)\nNATIONAL DIGILOCKER LAND RECORD CERTIFICATE\n14-Digit Bhu-Aadhaar (ULPIN): ${ulpin}\nState: Andhra Pradesh | District: ${dName} | Mandal: ${mName} | Village: ${vName}\nSurvey No: ${sNum} | Khata No: ${kNum} | Pattadar: ${oName}\nExtent: ${(pSize / 4840).toFixed(4)} Acres (${pSize} Sq Yards)\nDigital Signature: Verified by Controller of Certifying Authorities (CCA India) via API Setu`,
-        confidenceScore: 0.99,
-        isAuthenticMatch: true
-      }
-    };
-
-    setUploads(prev => ({ ...prev, deed: digiDoc }));
-    onUploadedDocumentsChange([
-      ...uploadedDocuments.filter(d => d.slot !== 'deed'),
-      { name: digiDoc.name, size: digiDoc.size, type: digiDoc.type, slot: 'deed', ocrData: digiDoc.ocrData }
-    ]);
-  };
-
   const handleClearAllDocuments = () => {
     setUploads({ deed: null, tax: null, title: null, supporting: null });
     onUploadedDocumentsChange([]);
@@ -305,62 +259,35 @@ export default function DocumentUpload({ plotDetails, uploadedDocuments, onUploa
 
   return (
     <div className="space-y-6">
-      {/* Quick Demo Helper Banner: 1-Click Sample Documents & DigiLocker */}
-      <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-blue-50 border border-emerald-200 p-4 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs">
-        <div className="flex items-start sm:items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
-            <Sparkles className="w-5 h-5" />
-          </div>
-          <div>
-            <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-              <span>National DigiLocker & Land Registry Records</span>
-              <span className="text-[10px] font-black uppercase tracking-wider bg-blue-100 text-blue-900 px-2 py-0.5 rounded-full border border-blue-200">
-                Bhu-Aadhaar (DILRMP)
-              </span>
-            </h4>
-            <p className="text-xs text-gray-600 mt-0.5">
-              Pull officially certified records directly via DigiLocker (Bhu-Aadhaar) or load sample sale deeds matching Survey #{plotDetails.surveyNumber || '124/A'}.
-            </p>
-          </div>
+      {/* Top Document Upload Header & Action Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-200">
+        <div>
+          <h2 className="text-base font-bold text-gray-950">Property Documents Repository</h2>
+          <p className="text-xs text-gray-500">
+            Upload digital deeds and tax receipts for AI OCR verification and cadastral authenticity cross-checks.
+          </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2 shrink-0 w-full sm:w-auto justify-end">
-          <button
-            type="button"
-            onClick={handleImportDigiLocker}
-            className="px-3.5 py-2 bg-gradient-to-r from-blue-700 to-indigo-700 hover:from-blue-800 hover:to-indigo-800 text-white text-xs font-bold rounded-lg shadow-sm flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
-            title="Import official digitally certified title record via DigiLocker"
-          >
-            <Fingerprint className="w-4 h-4 text-blue-200" />
-            Import from DigiLocker
-          </button>
-          <button
-            type="button"
-            onClick={handleLoadSampleDocuments}
-            className="px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded-lg shadow-sm flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
-          >
-            <FolderOpen className="w-4 h-4" />
-            Load Sample Docs
-          </button>
+        <div className="flex items-center gap-2 shrink-0">
           {filesUploadedCount > 0 ? (
             <button
               type="button"
               onClick={handleClearAllDocuments}
-              className="px-3 py-2 bg-white hover:bg-red-50 border border-red-200 text-red-600 text-xs font-bold rounded-lg shadow-xs flex items-center gap-1 transition-all cursor-pointer"
-              title="Clear loaded documents"
+              className="px-3 py-1.5 bg-white hover:bg-rose-50 border border-rose-200 text-rose-600 text-xs font-bold rounded-lg shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
+              title="Clear all uploaded documents"
             >
               <RotateCcw className="w-3.5 h-3.5" />
-              Clear
+              Clear All ({filesUploadedCount})
             </button>
           ) : (
-            <a
-              href="/sample_sale_deed.txt"
-              download="sample_sale_deed.txt"
-              className="px-3 py-2 bg-white hover:bg-gray-50 border border-gray-300 text-gray-700 text-xs font-bold rounded-lg shadow-xs flex items-center gap-1 transition-all"
-              title="Download sample deed text file"
+            <button
+              type="button"
+              onClick={handleLoadSampleDocuments}
+              className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center gap-1.5"
+              title="Load sample documents for quick testing"
             >
-              <Download className="w-3.5 h-3.5 text-gray-500" />
-              Download Sample
-            </a>
+              <FolderOpen className="w-3.5 h-3.5 text-gray-500" />
+              Load Sample Docs
+            </button>
           )}
         </div>
       </div>
