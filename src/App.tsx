@@ -175,7 +175,7 @@ export default function App() {
       let data: any = null;
       try {
         const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), 3500);
+        const timer = setTimeout(() => controller.abort(), 15000);
         const response = await fetch('/api/verify', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

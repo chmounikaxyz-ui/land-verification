@@ -1596,7 +1596,7 @@ The "logicBreakdown" MUST be written in professional markdown and divided into t
 Produce a highly detailed, lengthy report that matches the required JSON structure. Be highly creative, specific to the district/village/mandal in Andhra Pradesh, clear, and extremely professional. Make it read like an advanced intelligence dossier prepared for an AP land buyer.`;
 
         let response: any = null;
-        const candidateModels = ["gemini-flash-latest", "gemini-2.0-flash", "gemini-1.5-flash"];
+        const candidateModels = ["gemini-3.8-flash", "gemini-2.5-flash", "gemini-flash-latest", "gemini-2.0-flash-exp"];
 
         for (const modelName of candidateModels) {
           try {
@@ -1682,7 +1682,7 @@ Produce a highly detailed, lengthy report that matches the required JSON structu
         });
 
             const timeoutPromise = new Promise((_, reject) =>
-              setTimeout(() => reject(new Error('Gemini API call timeout (2000ms limit reached)')), 2000)
+              setTimeout(() => reject(new Error('Gemini API call timeout (12000ms limit reached)')), 12000)
             );
 
             response = await Promise.race([geminiCall, timeoutPromise]);
