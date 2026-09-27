@@ -34,6 +34,8 @@ export interface PriceValuationPrediction {
   valuationDeltaPercentage: number;
   priceTrend3Year: { year: number; pricePerSqYard: number }[];
   marketRating: 'UNDERVALUED' | 'FAIR_MARKET' | 'OVERVALUED';
+  landFairValue?: number;
+  structureFairValue?: number;
 }
 
 export interface MultiFactorRiskAssessment {
@@ -154,6 +156,20 @@ export function extractPlotBoundariesAndEncroachments(
   return { accuracyPercentage, contourPoints, areaSqYardsCalculated: calculatedArea, areaDeltaPercentage, encroachments, encroachmentRiskScore };
 }
 
+export function calculateBuildingStructureFairValue(
+  plotSizeSqYards: number,
+  hasBuildingStructure?: boolean,
+  buildingFloors: number = 0,
+  buildingAgeYears: number = 3
+): number {
+  if (!hasBuildingStructure || buildingFloors <= 0) return 0;
+  const footprintSqFt = Math.round((plotSizeSqYards || 400) * 9 * 0.75); // ~75% building coverage
+  const builtUpAreaSqFt = buildingFloors * footprintSqFt;
+  const constrRatePerSqFt = 2100; // RCC Multi-story residential construction rate/sq ft
+  const depFactor = Math.max(0.65, 1.0 - (buildingAgeYears * 0.015));
+  return Math.round(builtUpAreaSqFt * constrRatePerSqFt * depFactor);
+}
+
 /**
  * 2. Land & Price Valuation Machine Learning Model (Spatial Regression)
  */
@@ -164,7 +180,10 @@ export async function predictLandPriceValuation(
   userEstimatedPrice: number,
   district: string,
   village: string,
-  cpiRates?: number[] // optional real India CPI rates from World Bank API
+  cpiRates?: number[], // optional real India CPI rates from World Bank API
+  hasBuildingStructure?: boolean,
+  buildingFloors: number = 0,
+  buildingAgeYears: number = 3
 ): Promise<PriceValuationPrediction> {
   // Regional base guidance rates per sq yard (INR)
   // Sourced from IGRS/state registration department published circle rates
@@ -215,7 +234,10 @@ export async function predictLandPriceValuation(
   // Spatial micro-market adjustment from GPS coordinates
   const spatialCoordMod = 1.0 + (Math.abs(Math.sin(latitude * 50 + longitude * 50)) * 0.25 - 0.1);
   const predictedPricePerSqYard = Math.round(baseRatePerSqYd * spatialCoordMod);
-  const predictedTotalMarketValue = predictedPricePerSqYard * (plotSizeSqYards || 400);
+  const targetSqYds = plotSizeSqYards || 400;
+  const landFairValue = Math.round(predictedPricePerSqYard * targetSqYds);
+  const structureFairValue = calculateBuildingStructureFairValue(targetSqYds, hasBuildingStructure, buildingFloors, buildingAgeYears);
+  const predictedTotalMarketValue = landFairValue + structureFairValue;
 
   const userEnteredTotalValue = userEstimatedPrice > 0 ? userEstimatedPrice : predictedTotalMarketValue * 0.95;
   const valuationDeltaAmount = predictedTotalMarketValue - userEnteredTotalValue;
@@ -248,6 +270,8 @@ export async function predictLandPriceValuation(
     valuationDeltaPercentage,
     priceTrend3Year,
     marketRating,
+    landFairValue,
+    structureFairValue,
     ...(isEstimatedRate ? { rateNote: `Circle rate for "${district}" not found in table. National average applied. Values are indicative only.` } : {})
   } as any;
 }
@@ -256,7 +280,10 @@ export function estimateMarketPriceSync(
   latitude: number,
   longitude: number,
   plotSizeSqYards: number,
-  district: string
+  district: string,
+  hasBuildingStructure?: boolean,
+  buildingFloors: number = 0,
+  buildingAgeYears: number = 3
 ): number {
   let baseRate = 12000;
   const d = (district || '').toLowerCase();
@@ -279,7 +306,10 @@ export function estimateMarketPriceSync(
   else if (d.includes('pune'))                                    baseRate = 22000;
 
   const spatialMod = 1.0 + (Math.abs(Math.sin(latitude * 50 + longitude * 50)) * 0.25 - 0.1);
-  return Math.round(baseRate * spatialMod * (plotSizeSqYards || 400));
+  const targetSqYds = plotSizeSqYards || 400;
+  const landVal = Math.round(baseRate * spatialMod * targetSqYds);
+  const structureVal = calculateBuildingStructureFairValue(targetSqYds, hasBuildingStructure, buildingFloors, buildingAgeYears);
+  return landVal + structureVal;
 }
 
 

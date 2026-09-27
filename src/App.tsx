@@ -82,21 +82,28 @@ export default function App() {
     }
   };
 
+  const DEFAULT_INITIAL_PLOT_DETAILS: PlotDetails = {
+    surveyNumber: '',
+    plotSize: 0,
+    district: '',
+    mandal: '',
+    village: '',
+    estimatedPrice: 0,
+    locationName: '',
+    latitude: 16.5062,
+    longitude: 80.6480,
+    khataNumber: '',
+    pattadarName: '',
+    landClassification: '',
+    hasBuildingStructure: false,
+    buildingFloors: 0,
+    buildingAgeYears: 0,
+    isDigiLockerVerified: false,
+    ulpin: ''
+  };
+
   // Wizard plot details state
-  const [plotDetails, setPlotDetails] = useState<PlotDetails>({
-    surveyNumber: '124/A',
-    plotSize: 450,
-    district: 'NTR',
-    mandal: 'Vijayawada (Urban)',
-    village: 'Devi Nagar',
-    estimatedPrice: 5000000,
-    locationName: 'Devi Nagar, Vijayawada (NTR District)',
-    latitude: 16.5334,
-    longitude: 80.6451,
-    khataNumber: '1042',
-    pattadarName: 'Ch. Narasimha Rao',
-    landClassification: 'Residential Abadi Plot'
-  });
+  const [plotDetails, setPlotDetails] = useState<PlotDetails>(DEFAULT_INITIAL_PLOT_DETAILS);
 
   const handleStartVerification = () => {
     // Reset wizard to step 1
@@ -104,20 +111,7 @@ export default function App() {
     setSelectedReport(null);
     setVerificationError(null);
     setUploadedDocuments([]); // Clear previously uploaded documents
-    setPlotDetails({
-      surveyNumber: '124/A',
-      plotSize: 450,
-      district: 'NTR',
-      mandal: 'Vijayawada (Urban)',
-      village: 'Devi Nagar',
-      estimatedPrice: 5000000,
-      locationName: 'Devi Nagar, Vijayawada (NTR District)',
-      latitude: 16.5334,
-      longitude: 80.6451,
-      khataNumber: '1042',
-      pattadarName: 'Ch. Narasimha Rao',
-      landClassification: 'Residential Abadi Plot'
-    });
+    setPlotDetails(DEFAULT_INITIAL_PLOT_DETAILS);
     setCurrentView('verify');
   };
 
@@ -128,20 +122,7 @@ export default function App() {
         setWizardStep(1);
         setSelectedReport(null);
         setUploadedDocuments([]);
-        setPlotDetails({
-          surveyNumber: '124/A',
-          plotSize: 450,
-          district: 'NTR',
-          mandal: 'Vijayawada (Urban)',
-          village: 'Devi Nagar',
-          estimatedPrice: 5000000,
-          locationName: 'Devi Nagar, Vijayawada (NTR District)',
-          latitude: 16.5334,
-          longitude: 80.6451,
-          khataNumber: '1042',
-          pattadarName: 'Ch. Narasimha Rao',
-          landClassification: 'Residential Abadi Plot'
-        });
+        setPlotDetails(DEFAULT_INITIAL_PLOT_DETAILS);
       }
     }
     setCurrentView(view);
@@ -195,7 +176,11 @@ export default function App() {
           plotDetails.plotSize,
           plotDetails.estimatedPrice,
           plotDetails.district || 'Municipal',
-          plotDetails.village || ''
+          plotDetails.village || '',
+          undefined,
+          plotDetails.hasBuildingStructure,
+          plotDetails.buildingFloors,
+          plotDetails.buildingAgeYears
         );
 
         const docMatch = uploadedDocuments.length > 0 ? 'VERIFIED' : 'PENDING';

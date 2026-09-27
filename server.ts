@@ -7,7 +7,8 @@ import { createServer as createViteServer } from "vite";
 import { 
   extractPlotBoundariesAndEncroachments, 
   predictLandPriceValuation, 
-  calculateMultiFactorRiskScore 
+  calculateMultiFactorRiskScore,
+  calculateBuildingStructureFairValue
 } from "./src/utils/mlEngine";
 
 // Load environment variables
@@ -973,7 +974,7 @@ app.post("/api/digilocker/verify", async (req, res) => {
     );
 
     const record = matchKey ? REGIONAL_CADASTRE[matchKey] : {
-      pattadarName: "Ch. Narasimha Rao",
+      pattadarName: "Registered Land Owner",
       fatherName: "Recorded in State Land Register",
       khataNumber: `${1000 + (Math.abs(latInt + lngInt) % 899)}`,
       landClassification: "Government Approved Patta Land",
@@ -1212,6 +1213,9 @@ app.post("/api/verify", async (req, res) => {
       estimatedPrice,
       latitude,
       longitude,
+      hasBuildingStructure,
+      buildingFloors,
+      buildingAgeYears
     } = plotDetails;
 
     // GPS coordinates are mandatory — do not silently default to any city.
@@ -1383,7 +1387,18 @@ app.post("/api/verify", async (req, res) => {
       console.log(`[mlEngine] Boundary re-computed with ${overpassData.nearbyBuildingFootprints.length} real OSM building footprints.`);
     }
 
-    const pricePrediction = await predictLandPriceValuation(lat, lng, targetSize, userPrice, district || '', village || '', realCPIRates);
+    const pricePrediction = await predictLandPriceValuation(
+      lat, 
+      lng, 
+      targetSize, 
+      userPrice, 
+      district || '', 
+      village || '', 
+      realCPIRates,
+      hasBuildingStructure,
+      buildingFloors,
+      buildingAgeYears
+    );
     
     // INTEGRATION: Real Estate Valuation Engine using Google Places API
     const placesApiKey = process.env.GOOGLE_PLACES_API_KEY;
@@ -1423,9 +1438,20 @@ app.post("/api/verify", async (req, res) => {
           }
 
           pricePrediction.predictedPricePerSqYard       = Math.round(pricePrediction.predictedPricePerSqYard * multiplier);
-          pricePrediction.predictedTotalMarketValue     = pricePrediction.predictedPricePerSqYard * targetSize;
+          const landVal                                 = pricePrediction.predictedPricePerSqYard * targetSize;
+          const structureVal                            = calculateBuildingStructureFairValue(targetSize, hasBuildingStructure, buildingFloors, buildingAgeYears);
+          pricePrediction.predictedTotalMarketValue     = landVal + structureVal;
+          pricePrediction.landFairValue                 = landVal;
+          pricePrediction.structureFairValue            = structureVal;
           pricePrediction.valuationDeltaAmount          = pricePrediction.predictedTotalMarketValue - pricePrediction.userEnteredTotalValue;
           pricePrediction.valuationDeltaPercentage      = parseFloat(((pricePrediction.valuationDeltaAmount / pricePrediction.predictedTotalMarketValue) * 100).toFixed(2));
+          if (pricePrediction.userEnteredTotalValue > pricePrediction.predictedTotalMarketValue * 1.15) {
+            pricePrediction.marketRating = 'OVERVALUED';
+          } else if (pricePrediction.userEnteredTotalValue < pricePrediction.predictedTotalMarketValue * 0.88) {
+            pricePrediction.marketRating = 'UNDERVALUED';
+          } else {
+            pricePrediction.marketRating = 'FAIR_MARKET';
+          }
           (pricePrediction as any).valuationReasons     = valuationReasons;
           console.log('[Places API] ✅ Valuation adjusted:', valuationReasons.join(', '));
         }
@@ -1542,7 +1568,8 @@ app.post("/api/verify", async (req, res) => {
 - Location: ${village || "N/A"}, Mandal ${mandal || "N/A"}, District ${district || "N/A"}, Andhra Pradesh, India
 - GPS Coordinates: Latitude ${lat}, Longitude ${lng}
 - Estimated Price: ₹${userPrice.toLocaleString('en-IN')}
-- ML Predicted Market Value: ₹${pricePrediction.predictedTotalMarketValue.toLocaleString('en-IN')} (₹${pricePrediction.predictedPricePerSqYard}/sq yd)
+- ML Predicted Total Market Value: ₹${pricePrediction.predictedTotalMarketValue.toLocaleString('en-IN')} (Land: ₹${((pricePrediction.landFairValue || (pricePrediction.predictedPricePerSqYard * targetSize))).toLocaleString('en-IN')} @ ₹${pricePrediction.predictedPricePerSqYard}/sq yd${hasBuildingStructure && buildingFloors > 0 ? `, ${buildingFloors}-Floor Structure: ₹${(pricePrediction.structureFairValue || 0).toLocaleString('en-IN')}` : ''})
+- Valuation Verdict: ${pricePrediction.marketRating === 'OVERVALUED' ? `Asking price is ${Math.abs(pricePrediction.valuationDeltaPercentage)}% above fair market value` : pricePrediction.marketRating === 'UNDERVALUED' ? `Asking price is ${Math.abs(pricePrediction.valuationDeltaPercentage)}% below fair market value (High value deal)` : `Asking price is within fair market range (${Math.abs(pricePrediction.valuationDeltaPercentage)}% ${pricePrediction.valuationDeltaPercentage >= 0 ? 'below' : 'above'} fair market value)`}
 - Meebhoomi AP Portal Scraped Owner (from AP Government Land Records DB): ${scrapedOwnerName}
 - Attached Documents with OCR details:
 ${docDetailsList.length > 0 ? docDetailsList.map((d: any) => `
@@ -1564,7 +1591,7 @@ The "logicBreakdown" MUST be written in professional markdown and divided into t
 1. "#### 📜 Section 1: Statutory Document & Legal Verification" - Explain in extreme detail how the AI verified the deed matching, registered ownership, deed history, and Survey Number legality under AP land law. Reference the AP Registration & Stamps Department (IGRS AP), Meebhoomi portal (meebhoomi.ap.gov.in), and the AP Rights in Land and Pattadar Passbooks Act. Explicitly mention the Meebhoomi AP scraper found the registered pattadar as: ${scrapedOwnerName}. Explicitly mention if the uploaded documents' survey numbers (${docDetailsList.map((d: any) => d.surveyNumber).filter(Boolean).join(', ') || 'none'}) match the form input (${surveyNumber}). Describe the cross-referencing with AP land mutation records.
 2. "#### 🌍 Section 2: Geospatial Boundary & Encroachment Auditing" - Explain the AI's use of satellite segmentation, GPS coordinates alignment, boundary overlap, direct road access, and nearby structures in the ${district} district of AP. Detail any encroachments: ${boundaryResult.encroachments.length > 0 ? boundaryResult.encroachments.map((e: any) => `${e.type} (${e.severity} severity, ${e.areaSqYards} sq yards): ${e.description}`).join(', ') : 'none detected'}. Describe topological analysis and correlation with AP Survey & Land Records (APSLRS) cadastral maps.
 3. "#### 🌾 Section 3: Environmental and Soil Composition Viability" - Use the REAL measured data from scientific APIs as your ground truth: Soil Type is confirmed as "${realEnvData?.soilType || 'Mixed Loam'}", Composition: "${realEnvData?.soilDetails?.composition || 'Clay Loam'}", Structural Strength: "${realEnvData?.soilDetails?.strength || 'Moderate'}", Soil pH: "${realEnvData?.soilDetails?.ph || 'Neutral'}", Organic Carbon: "${realEnvData?.soilDetails?.organicCarbon || '1.0% SOC'}". Flood Risk is measured as "${realEnvData?.floodRisk || 'LOW'}" based on terrain elevation of ${realEnvData?.elevation?.toFixed(0) || '50'}m and river discharge analysis. ${realEnvData?.environmentalRisks?.overallDescription || 'Standard flood assessment applies.'}. Expand with expert commentary specific to AP's agroclimatic zones.
-4. "#### 📈 Section 4: Market Valuation & Investment Verdict" - Analyze the estimated price of ₹${userPrice.toLocaleString('en-IN')} versus typical local land rates in ${district}, AP (₹${pricePrediction.predictedPricePerSqYard}/sq yd), detail price deviation percentages, and explain investment reasoning using spatial regression ML models calibrated for AP real estate trends.
+4. "#### 📈 Section 4: Market Valuation & Investment Verdict" - Analyze the estimated asking price of ₹${userPrice.toLocaleString('en-IN')} versus estimated total fair market value of ₹${pricePrediction.predictedTotalMarketValue.toLocaleString('en-IN')} (combining land at ₹${pricePrediction.predictedPricePerSqYard}/sq yd and any building structure), explain deviation percentages accurately (${Math.abs(pricePrediction.valuationDeltaPercentage)}% ${pricePrediction.valuationDeltaPercentage >= 0 ? 'below' : 'above'} fair market value), and provide grounded investment reasoning using spatial regression ML models calibrated for AP real estate trends.
 
 Produce a highly detailed, lengthy report that matches the required JSON structure. Be highly creative, specific to the district/village/mandal in Andhra Pradesh, clear, and extremely professional. Make it read like an advanced intelligence dossier prepared for an AP land buyer.`;
 
@@ -1716,7 +1743,7 @@ Produce a highly detailed, lengthy report that matches the required JSON structu
 
     const deltaPct = pricePrediction.valuationDeltaPercentage;
     const valuationDeltaPct = parseFloat(deltaPct.toFixed(2));
-    const fallbackLogicBreakdown = `### Hello! I am your AI Land Verification Assistant 👋\n\nI have just completed a comprehensive, multi-layered scan of the plot you requested in **${village}, ${district}**. Let me walk you through exactly how I analyzed this property step-by-step so you know exactly what you're looking at.\n\n#### 📜 1. How I Checked the Legal Documents\n\n${legalVerificationText}\n\nI also queried the local municipal development authority database. I can confirm this plot officially falls under the **Residential/Mixed-Use Zone (R-2)**. Any required land-use conversion from agricultural to non-agricultural (NA) status has been fully finalized and recorded in the system.\n\n#### 🌍 2. How I Mapped the Boundaries\n\nNext, I pulled high-resolution, multi-spectral satellite imagery (using Sentinel-2 and Landsat-8) and ran it through my proprietary U-Net segmentation model. I compared the physical ground truth against the digitized government layout maps.\n\nI found a **${boundaryResult.accuracyPercentage}% match** between the physical ground boundaries and the official layout maps. That is incredibly precise! The tiny bit of variance is well within the acceptable tolerance limit of 0.5 meters, so you won't have to worry about boundary disputes with your neighbors.\n\n${encroachmentText}\n\nI also checked for road access using OpenStreetMap data. You have direct public roadway connections with stable transit corridors, meaning your plot is definitely not landlocked!\n\n#### 🌾 3. How I Analyzed the Environment\n\nBy analyzing regional geological survey datasets and cross-referencing them with localized hydrological maps, I was able to evaluate the sub-surface conditions without ever digging a hole!\n\nThe geological profiles classify the soil here as high-integrity **Clay Loam**. I estimate the structural bearing capacity to be around 250 kN/m². This is fantastic news because it means you won't need to spend extra money on expensive deep-pile foundations if you decide to build a standard house.\n\nI also mapped the topography and elevation. The plot sits at an elevated position, giving it a **LOW** flood vulnerability rating. Water will drain rapidly during heavy monsoons, and I found no historical waterlogging zones within a 500-meter radius.\n\n#### 📈 4. My Final Valuation & Verdict\n\nFinally, I used a spatial regression Machine Learning model to evaluate recent transaction data, infrastructural proximity, and historical price appreciation trends in **${village}**.\n\nMy model predicts a fair-market rate of **₹${pricePrediction.predictedPricePerSqYard.toLocaleString('en-IN')}/sq yard** for this specific micro-market. For your **${targetSize} sq yard** plot, my estimated fair market value is **₹${pricePrediction.predictedTotalMarketValue.toLocaleString('en-IN')}**.\n\nYou entered a price of **₹${userPrice.toLocaleString('en-IN')}**, which means you are looking at a deal that is **${valuationDeltaPct > 0 ? `${valuationDeltaPct}% below my estimated market average` : `${Math.abs(valuationDeltaPct)}% above my estimated market average`}**.\n\n**My Final Advice:** ${verdictMapped === 'BUY' ? 'This property presents high long-term appreciation potential and the legal title looks very clean. I highly recommend proceeding with this transaction!' : 'I have identified some critical risk factors that you should be careful about. Please proceed with extreme caution and mandate a manual physical survey before making any financial commitments.'}\n\nI hope this detailed explanation gives you the confidence you need!`;
+    const fallbackLogicBreakdown = `### Hello! I am your AI Land Verification Assistant 👋\n\nI have just completed a comprehensive, multi-layered scan of the plot you requested in **${village}, ${district}**. Let me walk you through exactly how I analyzed this property step-by-step so you know exactly what you're looking at.\n\n#### 📜 1. How I Checked the Legal Documents\n\n${legalVerificationText}\n\nI also queried the local municipal development authority database. I can confirm this plot officially falls under the **Residential/Mixed-Use Zone (R-2)**. Any required land-use conversion from agricultural to non-agricultural (NA) status has been fully finalized and recorded in the system.\n\n#### 🌍 2. How I Mapped the Boundaries\n\nNext, I pulled high-resolution, multi-spectral satellite imagery (using Sentinel-2 and Landsat-8) and ran it through my proprietary U-Net segmentation model. I compared the physical ground truth against the digitized government layout maps.\n\nI found a **${boundaryResult.accuracyPercentage}% match** between the physical ground boundaries and the official layout maps. That is incredibly precise! The tiny bit of variance is well within the acceptable tolerance limit of 0.5 meters, so you won't have to worry about boundary disputes with your neighbors.\n\n${encroachmentText}\n\nI also checked for road access using OpenStreetMap data. You have direct public roadway connections with stable transit corridors, meaning your plot is definitely not landlocked!\n\n#### 🌾 3. How I Analyzed the Environment\n\nBy analyzing regional geological survey datasets and cross-referencing them with localized hydrological maps, I was able to evaluate the sub-surface conditions without ever digging a hole!\n\nThe geological profiles classify the soil here as high-integrity **Clay Loam**. I estimate the structural bearing capacity to be around 250 kN/m². This is fantastic news because it means you won't need to spend extra money on expensive deep-pile foundations if you decide to build a standard house.\n\nI also mapped the topography and elevation. The plot sits at an elevated position, giving it a **LOW** flood vulnerability rating. Water will drain rapidly during heavy monsoons, and I found no historical waterlogging zones within a 500-meter radius.\n\n#### 📈 4. My Final Valuation & Verdict\n\nFinally, I used a spatial regression Machine Learning model to evaluate recent transaction data, infrastructural proximity, and historical price appreciation trends in **${village}**.\n\nMy model predicts a fair-market rate of **₹${pricePrediction.predictedPricePerSqYard.toLocaleString('en-IN')}/sq yard** for this specific micro-market. For your **${targetSize} sq yard** property, my estimated total fair market value is **₹${pricePrediction.predictedTotalMarketValue.toLocaleString('en-IN')}**${hasBuildingStructure && buildingFloors > 0 ? ` (combining land at ₹${((pricePrediction.landFairValue || (pricePrediction.predictedPricePerSqYard * targetSize))).toLocaleString('en-IN')} and ${buildingFloors}-floor building structure at ₹${(pricePrediction.structureFairValue || 0).toLocaleString('en-IN')})` : ''}.\n\nYou entered a price of **₹${userPrice.toLocaleString('en-IN')}**, which means you are looking at a deal that is **${valuationDeltaPct > 0 ? `${valuationDeltaPct}% below my estimated market average` : valuationDeltaPct < 0 ? `${Math.abs(valuationDeltaPct)}% above my estimated market average` : `at exact parity with estimated fair market value`}**.\n\n**My Final Advice:** ${verdictMapped === 'BUY' ? 'This property presents high long-term appreciation potential and the legal title looks very clean. I highly recommend proceeding with this transaction!' : 'I have identified some critical risk factors that you should be careful about. Please proceed with extreme caution and mandate a manual physical survey before making any financial commitments.'}\n\nI hope this detailed explanation gives you the confidence you need!`;
 
     const fallbackResult = {
       safetyScore: riskAssessment.overallScore,

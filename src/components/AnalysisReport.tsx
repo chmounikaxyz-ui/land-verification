@@ -109,6 +109,14 @@ export default function AnalysisReport({ report, onRestart }: AnalysisReportProp
   const isOverpriced = priceDiff > 0;
   const gapPercentage = parseFloat(((Math.abs(priceDiff) / calculatedMarketAverage) * 100).toFixed(1));
 
+  // Dynamically determine effective market rating based on total fair market value (land + building)
+  const effectiveMarketRating: 'OVERVALUED' | 'FAIR_MARKET' | 'UNDERVALUED' = 
+    userEnteredPrice > calculatedMarketAverage * 1.15
+      ? 'OVERVALUED'
+      : userEnteredPrice < calculatedMarketAverage * 0.88
+        ? 'UNDERVALUED'
+        : 'FAIR_MARKET';
+
   // Dynamic growth & liquidity per plot
   const annualGrowthRate = (9.4 + geoSeed * 6.8).toFixed(1);
   const liquidityPercent = Math.round(84 + geoSeed * 14);
@@ -214,11 +222,11 @@ export default function AnalysisReport({ report, onRestart }: AnalysisReportProp
           });
         }
 
-        if (marketRating === 'OVERVALUED') {
+        if (effectiveMarketRating === 'OVERVALUED') {
           verdictReasons.push({
             type: 'warning',
             title: 'Asking Price Exceeds Fair Market Valuation',
-            detail: `Asking price (₹${userEnteredPrice.toLocaleString('en-IN')}) is ${gapPercentage}% higher than government IGRS guidance rates and local sales medians.`
+            detail: `Asking price (₹${userEnteredPrice.toLocaleString('en-IN')}) is ${gapPercentage}% higher than government IGRS guidance rates and estimated fair market valuation (₹${calculatedMarketAverage.toLocaleString('en-IN')}).`
           });
         }
 
@@ -931,23 +939,37 @@ export default function AnalysisReport({ report, onRestart }: AnalysisReportProp
                 <span>7. Market Valuation & Future Price Growth Outlook</span>
               </h4>
               <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full border ${
-                marketRating === 'OVERVALUED' ? 'text-amber-700 bg-amber-50 border-amber-200/60' : 'text-emerald-700 bg-emerald-50 border-emerald-200/60'
+                effectiveMarketRating === 'OVERVALUED' 
+                  ? 'text-amber-700 bg-amber-50 border-amber-200/60' 
+                  : 'text-emerald-700 bg-emerald-50 border-emerald-200/60'
               }`}>
-                {marketRating === 'OVERVALUED' ? `Overpriced (+${gapPercentage}%)` : '+12% to +15% / yr'}
+                {effectiveMarketRating === 'OVERVALUED' 
+                  ? `Overpriced (+${gapPercentage}%)` 
+                  : effectiveMarketRating === 'UNDERVALUED'
+                    ? `High Value Deal (-${gapPercentage}%)`
+                    : isOverpriced
+                      ? `Fair Value (+${gapPercentage}%)`
+                      : priceDiff < 0
+                        ? `Fair Value (-${gapPercentage}%)`
+                        : `Fair Value Rate`}
               </span>
             </div>
             <div className="space-y-2 text-xs font-normal leading-relaxed text-gray-600">
               <p>
-                <strong className="font-semibold text-gray-900">Analysis Method & Findings:</strong> An automated market valuation model benchmarked the plot rate against published state IGRS circle rates, local micro-market sales, and regional growth corridors. The current fair market valuation is calculated at <strong className="font-semibold text-gray-900">₹{calculatedMarketAverage.toLocaleString('en-IN')}</strong>.
+                <strong className="font-semibold text-gray-900">Analysis Method & Findings:</strong> An automated market valuation model benchmarked the plot rate against published state IGRS circle rates, local micro-market sales, and regional growth corridors. The current fair market valuation is calculated at <strong className="font-semibold text-gray-900">₹{calculatedMarketAverage.toLocaleString('en-IN')}</strong>{hasStructure && numFloors > 0 ? ` (Land: ₹${landFairValue.toLocaleString('en-IN')} + ${numFloors}-Floor Structure: ₹${structureFairValue.toLocaleString('en-IN')})` : ''}.
               </p>
               <div className={`p-3 rounded-lg text-xs border ${
-                marketRating === 'OVERVALUED' ? 'bg-amber-50/80 border-amber-200/60 text-amber-950' : 'bg-emerald-50/70 border-emerald-200/60 text-emerald-900'
+                effectiveMarketRating === 'OVERVALUED' 
+                  ? 'bg-amber-50/80 border-amber-200/60 text-amber-950' 
+                  : 'bg-emerald-50/70 border-emerald-200/60 text-emerald-900'
               }`}>
                 <span className="font-semibold block mb-0.5">Buyer Impact:</span>
-                {marketRating === 'OVERVALUED' ? (
-                  <span>VALUATION HAZARD: Asking price is {gapPercentage}% higher than government guidance rates and local market sales medians. Negotiate the price down toward fair market value before finalizing purchase terms.</span>
+                {effectiveMarketRating === 'OVERVALUED' ? (
+                  <span>VALUATION HAZARD: Asking price is {gapPercentage}% higher than government guidance rates and estimated fair market valuation (₹{calculatedMarketAverage.toLocaleString('en-IN')}). Negotiate the price down toward fair market value before finalizing purchase terms.</span>
+                ) : effectiveMarketRating === 'UNDERVALUED' ? (
+                  <span>ATTRACTIVE PRICING: Asking price is {gapPercentage}% below estimated fair market value (₹{calculatedMarketAverage.toLocaleString('en-IN')}) offering an immediate equity safety margin. Projected annual capital growth is estimated at +12% to +15% per year.</span>
                 ) : (
-                  <span>The property is priced fairly with strong appreciation potential. Projected annual price growth is estimated at +12% to +15% per year, supported by upcoming road expansions in the area.</span>
+                  <span>The property is priced fairly {priceDiff < 0 ? `(${gapPercentage}% below total fair market value of ₹${calculatedMarketAverage.toLocaleString('en-IN')})` : priceDiff > 0 ? `(${gapPercentage}% above baseline fair value)` : `at fair market value`} with strong appreciation potential. Projected annual price growth is estimated at +12% to +15% per year, supported by upcoming road expansions in the area.</span>
                 )}
               </div>
             </div>

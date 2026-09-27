@@ -254,14 +254,14 @@ export default function DocumentUpload({ plotDetails, uploadedDocuments, onUploa
 
   const handleImportDigiLocker = () => {
     const sNum = plotDetails.surveyNumber || '124/A';
-    const pSize = plotDetails.plotSize || 450;
-    const vName = plotDetails.village || 'Devi Nagar';
-    const mName = plotDetails.mandal || 'Vijayawada (Urban)';
+    const pSize = plotDetails.plotSize || 400;
+    const vName = plotDetails.village || 'Municipal Area';
+    const mName = plotDetails.mandal || 'Urban Mandal';
     const dName = plotDetails.district || 'NTR';
     const oName = plotDetails.pattadarName && plotDetails.pattadarName !== 'Private Owner (Deed Verified)' 
       ? plotDetails.pattadarName 
-      : 'Ch. Narasimha Rao';
-    const kNum = plotDetails.khataNumber || '1042';
+      : (plotDetails.surveyNumber === '124/A' ? 'Ch. Narasimha Rao' : 'Registered Land Owner (Verified)');
+    const kNum = plotDetails.khataNumber || (plotDetails.surveyNumber === '124/A' ? '1042' : '1088');
     const ulpin = plotDetails.ulpin || `AP28${Math.abs(Math.round(plotDetails.latitude * 10000)) % 9999}${sNum.replace(/[^0-9a-zA-Z]/g, '').slice(0, 4)}9102`;
 
     const digiDoc: UploadedFile = {
