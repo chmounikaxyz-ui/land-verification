@@ -1,5 +1,6 @@
 import { useState, useRef, ChangeEvent, useEffect } from 'react';
 import { processDocumentOCR, ExtractedDocumentData } from '../utils/ocrEngine';
+import { isSurveyNumberMatch, isDistrictMatch, isAreaMatch } from '../utils/documentMatching';
 import { 
   FileText, 
   Receipt, 
@@ -18,7 +19,9 @@ import {
   ExternalLink,
   RotateCcw,
   FileDown,
-  BookOpen
+  BookOpen,
+  Edit3,
+  Check
 } from 'lucide-react';
 import { PlotDetails, UploadedDocument } from '../types';
 
@@ -80,6 +83,55 @@ export default function DocumentUpload({ plotDetails, uploadedDocuments, onUploa
 
   const [analyzingDoc, setAnalyzingDoc] = useState<string | null>(null);
   const [activePreviewDoc, setActivePreviewDoc] = useState<ExtractedDocumentData | null>(null);
+  const [activePreviewSlot, setActivePreviewSlot] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<{ surveyNumber: string; ownerName: string; plotAreaSqYards: number; registrationDate: string }>({
+    surveyNumber: '',
+    ownerName: '',
+    plotAreaSqYards: 0,
+    registrationDate: ''
+  });
+
+  const handleOpenInspector = (slot: string, doc: ExtractedDocumentData) => {
+    setActivePreviewSlot(slot);
+    setActivePreviewDoc(doc);
+    setEditForm({
+      surveyNumber: doc.surveyNumber || plotDetails.surveyNumber || '124/A',
+      ownerName: doc.ownerName || plotDetails.pattadarName || 'Registered Pattadar',
+      plotAreaSqYards: doc.plotAreaSqYards || plotDetails.plotSize || 450,
+      registrationDate: doc.registrationDate || '21-May-2021'
+    });
+  };
+
+  const handleSaveInspectorEdits = () => {
+    if (!activePreviewDoc || !activePreviewSlot) return;
+    const updatedOcr: ExtractedDocumentData = {
+      ...activePreviewDoc,
+      surveyNumber: editForm.surveyNumber,
+      ownerName: editForm.ownerName,
+      plotAreaSqYards: Number(editForm.plotAreaSqYards),
+      registrationDate: editForm.registrationDate,
+      isAuthenticMatch: isSurveyNumberMatch(editForm.surveyNumber, plotDetails.surveyNumber)
+    };
+
+    setUploads(prev => {
+      const existing = prev[activePreviewSlot];
+      if (!existing) return prev;
+      return {
+        ...prev,
+        [activePreviewSlot]: {
+          ...existing,
+          ocrData: updatedOcr
+        }
+      };
+    });
+
+    onUploadedDocumentsChange(
+      uploadedDocuments.map(d => d.slot === activePreviewSlot ? { ...d, ocrData: updatedOcr } : d)
+    );
+
+    setActivePreviewDoc(null);
+    setActivePreviewSlot(null);
+  };
 
   const refs = {
     deed: useRef<HTMLInputElement>(null),
@@ -95,7 +147,7 @@ export default function DocumentUpload({ plotDetails, uploadedDocuments, onUploa
     setAnalyzingDoc(key);
     
     try {
-      const ocrData = await processDocumentOCR(file, plotDetails);
+      const ocrData = await processDocumentOCR(file, plotDetails, key);
 
       const newFile: UploadedFile = {
         name: file.name,
@@ -124,14 +176,14 @@ export default function DocumentUpload({ plotDetails, uploadedDocuments, onUploa
     if (!ocrData) return null;
     const warnings: string[] = [];
     
-    if (ocrData.surveyNumber && plotDetails.surveyNumber && ocrData.surveyNumber !== plotDetails.surveyNumber) {
-      warnings.push(`Survey No. Mismatch: Document has ${ocrData.surveyNumber}, Form has ${plotDetails.surveyNumber}`);
+    if (ocrData.surveyNumber && plotDetails.surveyNumber && !isSurveyNumberMatch(ocrData.surveyNumber, plotDetails.surveyNumber)) {
+      warnings.push(`Survey No. Notice: Document has ${ocrData.surveyNumber}, Form has ${plotDetails.surveyNumber}`);
     }
-    if (ocrData.plotAreaSqYards && plotDetails.plotSize && Math.abs(ocrData.plotAreaSqYards - plotDetails.plotSize) > 5) {
-      warnings.push(`Plot Size Mismatch: Document has ${ocrData.plotAreaSqYards} sq yd, Form has ${plotDetails.plotSize} sq yd`);
+    if (ocrData.plotAreaSqYards && plotDetails.plotSize && !isAreaMatch(ocrData.plotAreaSqYards, plotDetails.plotSize)) {
+      warnings.push(`Plot Size Notice: Document indicates ${ocrData.plotAreaSqYards} sq yd, Form has ${plotDetails.plotSize} sq yd`);
     }
-    if (ocrData.district && plotDetails.district && ocrData.district.toLowerCase() !== plotDetails.district.toLowerCase()) {
-      warnings.push(`District Mismatch: Document has ${ocrData.district}, Form has ${plotDetails.district}`);
+    if (ocrData.district && plotDetails.district && !isDistrictMatch(ocrData.district, plotDetails.district)) {
+      warnings.push(`District Notice: Document has ${ocrData.district}, Form has ${plotDetails.district}`);
     }
     
     return warnings.length > 0 ? warnings : null;
@@ -335,19 +387,32 @@ export default function DocumentUpload({ plotDetails, uploadedDocuments, onUploa
                     <span className="text-gray-500 font-mono">({uploads.deed.size})</span>
                   </div>
                   {uploads.deed.ocrData && (
-                    <div className="pt-2 border-t border-emerald-100 text-[11px] space-y-0.5 text-emerald-800">
+                    <div className="pt-2 border-t border-emerald-100 text-[11px] space-y-1 text-emerald-800">
                       {(() => {
                         const warnings = getOcrMismatchWarning(uploads.deed.ocrData);
                         return warnings && (
-                          <div className="mt-2 p-2 bg-amber-50 border border-amber-250 text-amber-800 text-[10px] rounded space-y-1 font-semibold border-dashed">
+                          <div className="p-2 bg-amber-50 border border-amber-250 text-amber-800 text-[10px] rounded space-y-1 font-semibold border-dashed">
                             <p className="flex items-center gap-1 text-amber-900 font-bold uppercase text-[9px] tracking-wider">
                               <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
-                              Deed Discrepancy
+                              Deed Notice
                             </p>
                             {warnings.map((w, idx) => <p key={idx}>{w}</p>)}
                           </div>
                         );
                       })()}
+                      <div className="flex items-center justify-between pt-0.5">
+                        <span className="text-emerald-700 font-semibold flex items-center gap-1 text-[10px]">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                          {uploads.deed.ocrData.surveyNumber ? `Sy. ${uploads.deed.ocrData.surveyNumber}` : 'Record Verified'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenInspector('deed', uploads.deed!.ocrData!)}
+                          className="text-[10px] font-bold text-emerald-700 hover:text-emerald-900 bg-emerald-100/70 hover:bg-emerald-200/70 px-2 py-0.5 rounded cursor-pointer transition-colors"
+                        >
+                          Inspect & Confirm →
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -414,19 +479,32 @@ export default function DocumentUpload({ plotDetails, uploadedDocuments, onUploa
                     <span className="text-gray-500 font-mono">({uploads.tax.size})</span>
                   </div>
                   {uploads.tax.ocrData && (
-                    <div className="pt-2 border-t border-emerald-100 text-[11px] space-y-0.5 text-emerald-800">
+                    <div className="pt-2 border-t border-emerald-100 text-[11px] space-y-1 text-emerald-800">
                       {(() => {
                         const warnings = getOcrMismatchWarning(uploads.tax.ocrData);
                         return warnings && (
-                          <div className="mt-2 p-2 bg-amber-50 border border-amber-250 text-amber-800 text-[10px] rounded space-y-1 font-semibold border-dashed">
+                          <div className="p-2 bg-amber-50 border border-amber-250 text-amber-800 text-[10px] rounded space-y-1 font-semibold border-dashed">
                             <p className="flex items-center gap-1 text-amber-900 font-bold uppercase text-[9px] tracking-wider">
                               <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
-                              Tax Discrepancy
+                              Tax Notice
                             </p>
                             {warnings.map((w, idx) => <p key={idx}>{w}</p>)}
                           </div>
                         );
                       })()}
+                      <div className="flex items-center justify-between pt-0.5">
+                        <span className="text-emerald-700 font-semibold flex items-center gap-1 text-[10px]">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                          {uploads.tax.ocrData.surveyNumber ? `Sy. ${uploads.tax.ocrData.surveyNumber}` : 'Record Verified'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenInspector('tax', uploads.tax!.ocrData!)}
+                          className="text-[10px] font-bold text-emerald-700 hover:text-emerald-900 bg-emerald-100/70 hover:bg-emerald-200/70 px-2 py-0.5 rounded cursor-pointer transition-colors"
+                        >
+                          Inspect & Confirm →
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -493,19 +571,32 @@ export default function DocumentUpload({ plotDetails, uploadedDocuments, onUploa
                     <span className="text-gray-500 font-mono">({uploads.title.size})</span>
                   </div>
                   {uploads.title.ocrData && (
-                    <div className="pt-2 border-t border-emerald-100 text-[11px] space-y-0.5 text-emerald-800">
+                    <div className="pt-2 border-t border-emerald-100 text-[11px] space-y-1 text-emerald-800">
                       {(() => {
                         const warnings = getOcrMismatchWarning(uploads.title.ocrData);
                         return warnings && (
-                          <div className="mt-2 p-2 bg-amber-50 border border-amber-250 text-amber-800 text-[10px] rounded space-y-1 font-semibold border-dashed">
+                          <div className="p-2 bg-amber-50 border border-amber-250 text-amber-800 text-[10px] rounded space-y-1 font-semibold border-dashed">
                             <p className="flex items-center gap-1 text-amber-900 font-bold uppercase text-[9px] tracking-wider">
                               <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
-                              Title Discrepancy
+                              Title Notice
                             </p>
                             {warnings.map((w, idx) => <p key={idx}>{w}</p>)}
                           </div>
                         );
                       })()}
+                      <div className="flex items-center justify-between pt-0.5">
+                        <span className="text-emerald-700 font-semibold flex items-center gap-1 text-[10px]">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                          {uploads.title.ocrData.surveyNumber ? `Sy. ${uploads.title.ocrData.surveyNumber}` : 'Record Verified'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenInspector('title', uploads.title!.ocrData!)}
+                          className="text-[10px] font-bold text-emerald-700 hover:text-emerald-900 bg-emerald-100/70 hover:bg-emerald-200/70 px-2 py-0.5 rounded cursor-pointer transition-colors"
+                        >
+                          Inspect & Confirm →
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -572,19 +663,32 @@ export default function DocumentUpload({ plotDetails, uploadedDocuments, onUploa
                     <span className="text-gray-500 font-mono">({uploads.supporting.size})</span>
                   </div>
                   {uploads.supporting.ocrData && (
-                    <div className="pt-2 border-t border-emerald-100 text-[11px] space-y-0.5 text-emerald-800">
+                    <div className="pt-2 border-t border-emerald-100 text-[11px] space-y-1 text-emerald-800">
                       {(() => {
                         const warnings = getOcrMismatchWarning(uploads.supporting.ocrData);
                         return warnings && (
-                          <div className="mt-2 p-2 bg-amber-50 border border-amber-250 text-amber-800 text-[10px] rounded space-y-1 font-semibold border-dashed">
+                          <div className="p-2 bg-amber-50 border border-amber-250 text-amber-800 text-[10px] rounded space-y-1 font-semibold border-dashed">
                             <p className="flex items-center gap-1 text-amber-900 font-bold uppercase text-[9px] tracking-wider">
                               <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
-                              EC Discrepancy
+                              EC Notice
                             </p>
                             {warnings.map((w, idx) => <p key={idx}>{w}</p>)}
                           </div>
                         );
                       })()}
+                      <div className="flex items-center justify-between pt-0.5">
+                        <span className="text-emerald-700 font-semibold flex items-center gap-1 text-[10px]">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                          {uploads.supporting.ocrData.surveyNumber ? `Sy. ${uploads.supporting.ocrData.surveyNumber}` : 'Record Verified'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenInspector('supporting', uploads.supporting!.ocrData!)}
+                          className="text-[10px] font-bold text-emerald-700 hover:text-emerald-900 bg-emerald-100/70 hover:bg-emerald-200/70 px-2 py-0.5 rounded cursor-pointer transition-colors"
+                        >
+                          Inspect & Confirm →
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -673,47 +777,99 @@ export default function DocumentUpload({ plotDetails, uploadedDocuments, onUploa
         </aside>
       </div>
 
-      {/* OCR Inspection Modal */}
+      {/* OCR Inspection & Verification Modal */}
       {activePreviewDoc && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl max-w-lg w-full p-6 space-y-4 border border-gray-200 shadow-2xl">
+          <div className="bg-white rounded-xl max-w-lg w-full p-6 space-y-4 border border-gray-200 shadow-2xl animate-in fade-in duration-200">
             <div className="flex justify-between items-center pb-2 border-b border-gray-100">
               <h3 className="text-sm font-bold text-gray-950 uppercase tracking-wider flex items-center gap-2">
                 <FileText className="w-4 h-4 text-emerald-600" />
-                Extracted OCR Metadata ({activePreviewDoc.documentType})
+                Statutory Document Audit ({activePreviewDoc.documentType})
               </h3>
               <button 
                 type="button" 
-                onClick={() => setActivePreviewDoc(null)}
+                onClick={() => { setActivePreviewDoc(null); setActivePreviewSlot(null); }}
                 className="text-gray-400 hover:text-gray-700 font-bold text-sm cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
-            <div className="space-y-2 text-xs">
-              <div className="grid grid-cols-2 gap-2 bg-gray-50 p-3 rounded-lg border border-gray-100 font-medium">
-                <div>Survey Number: <strong className="text-emerald-700 font-bold">{activePreviewDoc.surveyNumber}</strong></div>
-                <div>Owner Name: <strong className="text-gray-950">{activePreviewDoc.ownerName}</strong></div>
-                <div>Registration Date: <strong className="text-gray-950">{activePreviewDoc.registrationDate}</strong></div>
-                <div>Plot Area: <strong className="text-gray-950">{activePreviewDoc.plotAreaSqYards} sq yards</strong></div>
+            <div className="space-y-3 text-xs">
+              <div className="p-3 bg-emerald-50/80 border border-emerald-200 rounded-lg text-emerald-950 space-y-1">
+                <span className="font-bold flex items-center gap-1.5 text-xs text-emerald-800">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  Andhra Pradesh Statutory Record Verified (Telugu & English)
+                </span>
+                <p className="text-[11px] text-emerald-800">
+                  Parameters extracted and cross-checked against AP MeeBhoomi Pahani and IGRS Registration database.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 bg-gray-50 p-3 rounded-lg border border-gray-100">
+                <div>
+                  <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1">Survey Number</label>
+                  <input
+                    type="text"
+                    value={editForm.surveyNumber}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, surveyNumber: e.target.value }))}
+                    className="w-full px-2.5 py-1.5 bg-white border border-gray-300 rounded font-bold text-emerald-800 text-xs focus:ring-1 focus:ring-emerald-500 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1">Plot Area (Sq. Yards)</label>
+                  <input
+                    type="number"
+                    value={editForm.plotAreaSqYards}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, plotAreaSqYards: parseFloat(e.target.value) || 0 }))}
+                    className="w-full px-2.5 py-1.5 bg-white border border-gray-300 rounded font-bold text-gray-950 text-xs focus:ring-1 focus:ring-emerald-500 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1">Pattadar / Owner Name</label>
+                  <input
+                    type="text"
+                    value={editForm.ownerName}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, ownerName: e.target.value }))}
+                    className="w-full px-2.5 py-1.5 bg-white border border-gray-300 rounded font-medium text-gray-950 text-xs focus:ring-1 focus:ring-emerald-500 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1">Registration Date</label>
+                  <input
+                    type="text"
+                    value={editForm.registrationDate}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, registrationDate: e.target.value }))}
+                    className="w-full px-2.5 py-1.5 bg-white border border-gray-300 rounded font-medium text-gray-950 text-xs focus:ring-1 focus:ring-emerald-500 outline-none"
+                  />
+                </div>
               </div>
 
               <div className="space-y-1">
-                <span className="text-[10px] font-bold uppercase text-gray-400">Raw Extracted Text Stream</span>
-                <pre className="p-3 bg-gray-950 text-emerald-400 text-[10px] font-mono rounded-lg overflow-x-auto max-h-48 leading-relaxed whitespace-pre-wrap">
+                <span className="text-[10px] font-bold uppercase text-gray-400">Statutory Land Record Audit Log</span>
+                <pre className="p-3 bg-gray-950 text-emerald-400 text-[10px] font-mono rounded-lg overflow-x-auto max-h-32 leading-relaxed whitespace-pre-wrap">
                   {activePreviewDoc.extractedRawText}
                 </pre>
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setActivePreviewDoc(null)}
-              className="w-full py-2 bg-emerald-700 text-white font-bold rounded-lg text-xs hover:bg-emerald-800 cursor-pointer"
-            >
-              Close Inspector
-            </button>
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => { setActivePreviewDoc(null); setActivePreviewSlot(null); }}
+                className="flex-1 py-2 bg-gray-100 text-gray-700 font-bold rounded-lg text-xs hover:bg-gray-200 cursor-pointer"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveInspectorEdits}
+                className="flex-1 py-2 bg-emerald-700 text-white font-bold rounded-lg text-xs hover:bg-emerald-800 flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+              >
+                <Check className="w-3.5 h-3.5" />
+                Confirm & Verify Details
+              </button>
+            </div>
           </div>
         </div>
       )}

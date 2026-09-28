@@ -885,8 +885,8 @@ export default function AnalysisReport({ report, onRestart }: AnalysisReportProp
             </div>
             <div className="space-y-2 text-xs font-normal leading-relaxed text-gray-600">
               <p>
-                <strong className="font-semibold text-gray-900">Analysis Method & Findings:</strong> Automated record cross-matching was conducted against state land portal registers and the National Land Records Modernization Programme (DILRMP) for Survey Number <strong className="font-semibold text-gray-900">{plotDetails.surveyNumber || '124/A'}</strong>. {documentMatch === 'VERIFIED' ? (
-                  <>The title Encumbrance Certificate (EC) audit confirms <strong className="font-semibold text-emerald-700">Clear Title Status</strong> with zero government acquisition flags or prohibitive land classification locks.</>
+                <strong className="font-semibold text-gray-900">Analysis Method & Findings:</strong> Automated bilingual record cross-matching (Telugu & English) was conducted against state land portal registers, AP Registration & Stamps Department (IGRS), and the National Land Records Modernization Programme (DILRMP) for Survey Number <strong className="font-semibold text-gray-900">{plotDetails.surveyNumber || '124/A'}</strong>. {documentMatch === 'VERIFIED' ? (
+                  <>Uploaded statutory deeds (Sale Deed & Encumbrance Certificate Form 15) confirm <strong className="font-semibold text-emerald-700">Clear Title & Nil-Encumbrance Status</strong> with zero government acquisition flags, mortgages, or prohibitive land classification locks.</>
                 ) : (
                   <strong className="font-semibold text-amber-700">Statutory Sale Deed / Encumbrance Certificate (EC) was not provided for automated registry cross-matching.</strong>
                 )}
